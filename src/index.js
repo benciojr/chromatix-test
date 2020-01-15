@@ -1,19 +1,63 @@
 var http = require("http");
 let fs = require("fs");
+var xml2js = require("xml2js");
 
 //create a server object:
 http
   .createServer(async function(req, res) {
     let xml_data = fs.readFileSync(__dirname + "/../data.xml", "utf8");
 
-    let results = {
-      Wimmera:
-        "Partly cloudy. The chance of a thunderstorm with little or no rainfall in the morning and afternoon. Winds southwesterly 15 to 25 km/h turning southerly 20 to 25 km/h during the day. Overnight temperatures falling to between 14 and 19 with daytime temperatures reaching 25 to 31.",
-      "South West":
-        "Partly cloudy. Slight (20%) chance of a shower near the Otways in the morning. Near zero chance of rain elsewhere. The chance of a thunderstorm with little or no rainfall in the morning and afternoon. Winds south to southwesterly 15 to 25 km/h. Overnight temperatures falling to around 14 with daytime temperatures reaching between 18 and 24."
-    };
+    let results = {};
 
-    res.write(JSON.stringify(results));
-    res.end();
+    var areas = undefined;
+    var areasArray = [];
+    var defaultForecastIndex = 3;
+
+    // Without parser
+    xml2js.parseStringPromise(xml_data).then(function (result) {
+
+        //console.dir(result);
+
+        areas = result.product.forecast[0].area;
+        areasArray = convertToArray(areas);
+
+        var locations = filterAreaType(areasArray, 'location');
+        //console.dir(locations);
+        //console.log('locations.length: ' + locations.length);
+
+        locations.forEach(function (item, index) {
+            //console.log('item.$.description: '+item.$.description);
+            //console.log('item.forecast-period.text: '+item['forecast-period'][defaultForecastIndex].text[0]._);
+            results[item.$.description] = item['forecast-period'][defaultForecastIndex].text[0]._;
+        });
+
+        //console.dir(results);
+
+        res.write(JSON.stringify(results));
+        res.end();
+
+        console.log('Done');
+    }).catch(function (err) {
+        // Failed
+        console.log('Error parsing xml');
+    })
+
   })
   .listen(8080); //the server object listens on port 8080
+
+
+function convertToArray(items) {
+  var array = [];
+  for (var i = 0; i < items.length; i++) {
+    array.push(items[i]);
+  }
+  return array;
+}
+
+function filterAreaType(array, typeName) {
+  return array.filter(a => a.$.type === typeName);
+}
+
+function filterForecastPeriod(array, indexNumber) {
+  return array.filter(a => a.index === indexNumber);
+}
